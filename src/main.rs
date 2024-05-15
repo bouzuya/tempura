@@ -1,17 +1,24 @@
-use std::{collections::HashMap, io::Read, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, io::Read, path::PathBuf};
 
-fn main() {
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error("No arguments")]
+    NoArguments,
+    #[error("subdirectories are not supported yet")]
+    SubDirNotSupportedYet,
+    #[error("template is not directory")]
+    TemplateIsNotDirectory,
+}
+
+fn main() -> Result<(), Error> {
     let args = std::env::args().collect::<Vec<String>>();
     if args.len() < 2 {
-        eprintln!("Usage: {} <TEMPLATE>", args[0]);
-        return;
+        return Err(Error::NoArguments);
     }
 
-    let template = PathBuf::from_str(args[1].as_str()).expect("FIXME");
-
+    let template = PathBuf::from(args[1].as_str());
     if !template.is_dir() {
-        eprintln!("Error: {} is not a directory", template.display());
-        return;
+        return Err(Error::TemplateIsNotDirectory);
     }
 
     let template_dir = template.canonicalize().expect("FIXME");
@@ -27,8 +34,7 @@ fn main() {
     for dir_entry in template_dir.read_dir().expect("FIXME") {
         let dir_entry = dir_entry.expect("FIXME");
         if dir_entry.file_type().expect("FIXME").is_dir() {
-            eprintln!("Error: subdirectories are not supported yet");
-            return;
+            return Err(Error::SubDirNotSupportedYet);
         }
         let template_file_path = dir_entry.path();
         let relative_path = template_file_path
@@ -51,4 +57,6 @@ fn main() {
 
         std::fs::write(output_file_path, output_file_content).expect("FIXME");
     }
+
+    Ok(())
 }
