@@ -24,6 +24,12 @@ fn test_simple() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_current_directory_not_found() -> anyhow::Result<()> {
+    // I can't test
+    Ok(())
+}
+
+#[test]
 fn test_no_arguments() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("tempura")?;
     let temp_dir = temp_dir.path();
@@ -52,5 +58,19 @@ fn test_template_is_not_directory() -> anyhow::Result<()> {
         .assert()
         .failure()
         .stderr("Error: TemplateIsNotDirectory\n");
+    Ok(())
+}
+
+#[test]
+fn test_template_not_found() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("tempura")?;
+    let temp_dir = temp_dir.path();
+    Command::cargo_bin("tempura")?
+        .arg("tmpl")
+        .current_dir(temp_dir)
+        .write_stdin(r#"{"name":"World"}"#)
+        .assert()
+        .failure()
+        .stderr("Error: TemplateNotFound\n");
     Ok(())
 }

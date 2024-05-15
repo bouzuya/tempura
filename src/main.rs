@@ -2,12 +2,16 @@ use std::{collections::HashMap, io::Read, path::PathBuf};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
-    #[error("No arguments")]
+    #[error("current directory not found")]
+    CurrentDirectoryNotFound,
+    #[error("no arguments")]
     NoArguments,
     #[error("subdirectories are not supported yet")]
     SubDirNotSupportedYet,
     #[error("template is not directory")]
     TemplateIsNotDirectory,
+    #[error("template not found")]
+    TemplateNotFound,
 }
 
 fn main() -> Result<(), Error> {
@@ -16,15 +20,16 @@ fn main() -> Result<(), Error> {
         return Err(Error::NoArguments);
     }
 
-    let template = PathBuf::from(args[1].as_str());
+    let template = PathBuf::from(args[1].as_str())
+        .canonicalize()
+        .map_err(|_| Error::TemplateNotFound)?;
     if !template.is_dir() {
         return Err(Error::TemplateIsNotDirectory);
     }
-
-    let template_dir = template.canonicalize().expect("FIXME");
+    let template_dir = template;
     println!("DEBUG: template_dir = {:?}", template_dir);
 
-    let output_dir = std::env::current_dir().expect("FIXME");
+    let output_dir = std::env::current_dir().map_err(|_| Error::CurrentDirectoryNotFound)?;
     println!("DEBUG: output_dir = {:?}", output_dir);
 
     let mut data = String::new();
