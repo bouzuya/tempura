@@ -4,6 +4,10 @@ use std::{collections::HashMap, io::Read, path::PathBuf};
 enum Error {
     #[error("current directory not found")]
     CurrentDirectoryNotFound,
+    #[error("input is not valid json")]
+    InputIsNotValidJson,
+    #[error("input is not UTF-8")]
+    InputIsNotUtf8,
     #[error("no arguments")]
     NoArguments,
     #[error("subdirectories are not supported yet")]
@@ -27,14 +31,17 @@ fn main() -> Result<(), Error> {
         return Err(Error::TemplateIsNotDirectory);
     }
     let template_dir = template;
-    println!("DEBUG: template_dir = {:?}", template_dir);
+    // println!("DEBUG: template_dir = {:?}", template_dir);
 
     let output_dir = std::env::current_dir().map_err(|_| Error::CurrentDirectoryNotFound)?;
-    println!("DEBUG: output_dir = {:?}", output_dir);
+    // println!("DEBUG: output_dir = {:?}", output_dir);
 
     let mut data = String::new();
-    std::io::stdin().read_to_string(&mut data).expect("FIXME");
-    let data = serde_json::from_str::<HashMap<String, String>>(data.as_str()).expect("FIXME");
+    std::io::stdin()
+        .read_to_string(&mut data)
+        .map_err(|_| Error::InputIsNotUtf8)?;
+    let data = serde_json::from_str::<HashMap<String, String>>(data.as_str())
+        .map_err(|_| Error::InputIsNotValidJson)?;
 
     for dir_entry in template_dir.read_dir().expect("FIXME") {
         let dir_entry = dir_entry.expect("FIXME");
