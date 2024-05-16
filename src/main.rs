@@ -1,4 +1,8 @@
-use std::{collections::HashMap, io::Read, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -10,8 +14,8 @@ enum Error {
     InputIsNotUtf8,
     #[error("no arguments")]
     NoArguments,
-    #[error("subdirectories are not supported yet")]
-    SubDirNotSupportedYet,
+    #[error("read directory failed: {0}")]
+    ReadDirectoryFailed(String),
     #[error("template is not directory")]
     TemplateIsNotDirectory,
     #[error("template not found")]
@@ -40,35 +44,67 @@ fn main() -> Result<(), Error> {
     std::io::stdin()
         .read_to_string(&mut data)
         .map_err(|_| Error::InputIsNotUtf8)?;
-    let data = serde_json::from_str::<HashMap<String, String>>(data.as_str())
+    let data = serde_json::from_str::<BTreeMap<String, String>>(data.as_str())
         .map_err(|_| Error::InputIsNotValidJson)?;
+    // println!("DEBUG: data = {:?}", data);
 
-    for dir_entry in template_dir.read_dir().expect("FIXME") {
-        let dir_entry = dir_entry.expect("FIXME");
-        if dir_entry.file_type().expect("FIXME").is_dir() {
-            return Err(Error::SubDirNotSupportedYet);
-        }
-        let template_file_path = dir_entry.path();
-        let relative_path = template_file_path
-            .strip_prefix(&template_dir)
-            .expect("FIXME");
-        let file_name = relative_path.to_str().expect("FIXME");
-        let output_file_path = output_dir.join(render(file_name, &data));
-
-        let template_file_content =
-            std::fs::read_to_string(template_file_path.as_path()).expect("FIXME");
-        let output_file_content = render(&template_file_content, &data);
-        println!("DEBUG: template_file_path = {:?}", template_file_path);
-        println!("DEBUG: output_file_path = {:?}", output_file_path);
-        println!("DEBUG: output_file_content = {:?}", output_file_content);
-
-        std::fs::write(output_file_path, output_file_content).expect("FIXME");
-    }
+    handle_directory(
+        template_dir.as_path(),
+        template_dir.as_path(),
+        output_dir.as_path(),
+        &data,
+    )?;
 
     Ok(())
 }
 
-fn render(tmpl: &str, data: &HashMap<String, String>) -> String {
+fn handle_directory(
+    dir: &Path,
+    template_dir: &Path,
+    output_dir: &Path,
+    data: &BTreeMap<String, String>,
+) -> Result<(), Error> {
+    let mut paths = dir
+        .read_dir()
+        .and_then(|read_dir| {
+            read_dir
+                .map(|dir_entry_result| dir_entry_result.map(|dir_entry| dir_entry.path()))
+                .collect::<std::io::Result<Vec<PathBuf>>>()
+        })
+        .map_err(|_| Error::ReadDirectoryFailed(dir.display().to_string()))?;
+    paths.sort();
+    for path in paths {
+        if path.is_dir() {
+            handle_directory(&path, template_dir, output_dir, data)?;
+        } else {
+            handle_file(&path, template_dir, output_dir, data)?;
+        }
+    }
+    Ok(())
+}
+
+fn handle_file(
+    file: &Path,
+    template_dir: &Path,
+    output_dir: &Path,
+    data: &BTreeMap<String, String>,
+) -> Result<(), Error> {
+    let relative_path = file.strip_prefix(template_dir).expect("FIXME");
+    let file_name = relative_path.to_str().expect("FIXME");
+    let output_file_path = output_dir.join(render(file_name, data));
+
+    let template_file_content = std::fs::read_to_string(file).expect("FIXME");
+    let output_file_content = render(&template_file_content, data);
+    println!("DEBUG: file = {:?}", file);
+    println!("DEBUG: output_file_path = {:?}", output_file_path);
+    println!("DEBUG: output_file_content = {:?}", output_file_content);
+
+    std::fs::create_dir_all(output_file_path.parent().expect("FIXME")).expect("FIXME");
+    std::fs::write(output_file_path, output_file_content).expect("FIXME");
+    Ok(())
+}
+
+fn render(tmpl: &str, data: &BTreeMap<String, String>) -> String {
     parse_tmpl(tmpl)
         .into_iter()
         .fold(String::new(), |acc, token| match token {

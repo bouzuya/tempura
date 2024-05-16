@@ -142,6 +142,30 @@ fn test_template_is_not_directory() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_template_nested_directory() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("tempura")?;
+    let temp_dir = temp_dir.path();
+    // <temp_dir>/tmpl/nested/{{name}}.txt
+    let tmpl_dir = temp_dir.join("tmpl");
+    fs::create_dir_all(tmpl_dir.as_path())?;
+    let nested_dir = tmpl_dir.join("nested");
+    fs::create_dir_all(nested_dir.as_path())?;
+    fs::write(nested_dir.join("{{name}}.txt"), r#"Hello,{{name}}"#)?;
+    Command::cargo_bin("tempura")?
+        .arg("tmpl")
+        .current_dir(temp_dir)
+        .write_stdin(r#"{"name":"World"}"#)
+        .assert()
+        .success();
+    // <temp_dir>/nested/World.txt
+    assert_eq!(
+        fs::read_to_string(temp_dir.join("nested").join("World.txt"))?,
+        "Hello,World"
+    );
+    Ok(())
+}
+
+#[test]
 fn test_template_not_found() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("tempura")?;
     let temp_dir = temp_dir.path();
