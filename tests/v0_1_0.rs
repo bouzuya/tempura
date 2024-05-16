@@ -53,6 +53,23 @@ fn test_current_directory_not_found() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_escape_braces() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("tempura")?;
+    let temp_dir = temp_dir.path();
+    let tmpl_dir = temp_dir.join("tmpl");
+    fs::create_dir_all(tmpl_dir.as_path())?;
+    fs::write(tmpl_dir.join("file.txt"), r#"{{ or {{"{{"}}"#)?;
+    Command::cargo_bin("tempura")?
+        .arg("tmpl")
+        .current_dir(temp_dir)
+        .write_stdin(r#"{"{{":"unused","\"{{\"":"unused"}"#)
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(temp_dir.join("file.txt"))?, "{{ or {{");
+    Ok(())
+}
+
+#[test]
 fn test_input_is_not_json() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("tempura")?;
     let temp_dir = temp_dir.path();

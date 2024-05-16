@@ -141,12 +141,29 @@ fn parse_tmpl_sub(chars: &mut std::str::Chars, tokens: &mut Vec<Token>, mut val:
                 var.push(c);
             }
             others => {
-                val.push_str("{{");
-                val.push_str(var.as_str());
-                if let Some(c) = others {
-                    val.push(c);
+                if var.is_empty() && others == Some('"') && {
+                    let mut cs = chars.clone();
+                    cs.next() == Some('{')
+                        && cs.next() == Some('{')
+                        && cs.next() == Some('"')
+                        && cs.next() == Some('}')
+                        && cs.next() == Some('}')
+                } {
+                    chars.next(); // {
+                    chars.next(); // {
+                    chars.next(); // "
+                    chars.next(); // }
+                    chars.next(); // }
+                    val.push_str("{{");
+                    break val;
+                } else {
+                    val.push_str("{{");
+                    val.push_str(var.as_str());
+                    if let Some(c) = others {
+                        val.push(c);
+                    }
+                    break val;
                 }
-                break val;
             }
         }
     }
@@ -186,5 +203,16 @@ mod tests {
         assert_eq!(f("{{a}}{{b}c"), vec![r("a"), l("{{b}c")]);
         assert_eq!(f("{{a}}{{b}}"), vec![r("a"), r("b")]);
         assert_eq!(f("{{a}}{{b}}c"), vec![r("a"), r("b"), l("c")]);
+        // escape {{
+        assert_eq!(f(r#"{{""#), vec![l(r#"{{""#)]);
+        assert_eq!(f(r#"{{"{"#), vec![l(r#"{{"{"#)]);
+        assert_eq!(f(r#"{{"{{"#), vec![l(r#"{{"{{"#)]);
+        assert_eq!(f(r#"{{"{{""#), vec![l(r#"{{"{{""#)]);
+        assert_eq!(f(r#"{{"{{"}"#), vec![l(r#"{{"{{"}"#)]);
+        assert_eq!(f(r#"{{"{{"}}"#), vec![l(r#"{{"#)]);
+        assert_eq!(f(r#"{{a"{{"}}"#), vec![l(r#"{{a"{{"}}"#)]);
+        // space is not allowed
+        assert_eq!(f(r#"{{ a }}"#), vec![l(r#"{{ a }}"#)]);
+        assert_eq!(f(r#"{{ "{{" }}"#), vec![l(r#"{{ "{{" }}"#)]);
     }
 }
