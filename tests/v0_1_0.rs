@@ -24,6 +24,29 @@ fn test_simple() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_some_vars() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("tempura")?;
+    let temp_dir = temp_dir.path();
+    let tmpl_dir = temp_dir.join("tmpl");
+    fs::create_dir_all(tmpl_dir.as_path())?;
+    fs::write(
+        tmpl_dir.join("{{file}}{{date}}.txt"),
+        r#"{{greet}},{{name}}!"#,
+    )?;
+    Command::cargo_bin("tempura")?
+        .arg("tmpl")
+        .current_dir(temp_dir)
+        .write_stdin(r#"{"date":"20010203","file":"message","greet":"Hi","name":"World"}"#)
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(temp_dir.join("message20010203.txt"))?,
+        "Hi,World!"
+    );
+    Ok(())
+}
+
+#[test]
 fn test_current_directory_not_found() -> anyhow::Result<()> {
     // I can't test
     Ok(())
