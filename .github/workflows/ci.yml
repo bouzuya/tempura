@@ -22,7 +22,7 @@ jobs:
           dockerfile: Dockerfile
           # extract-git-tag: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          image-name: genuuid
+          image-name: tempura
           image-tag: ${{ github.ref_name }}
   test:
     runs-on: ubuntu-latest
