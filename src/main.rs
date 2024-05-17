@@ -1,11 +1,15 @@
 use std::{
     collections::BTreeMap,
-    io::Read,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
+    #[error("create directory failed: {0}")]
+    CreateDirectoryFailed(String),
+    #[error("create file failed: {0}")]
+    CreateFileFailed(String),
     #[error("current directory not found")]
     CurrentDirectoryNotFound,
     #[error("input is not UTF-8")]
@@ -16,10 +20,18 @@ enum Error {
     NoArguments,
     #[error("read directory failed: {0}")]
     ReadDirectoryFailed(String),
+    #[error("read file failed: {0}")]
+    ReadFileFailed(String),
+    #[error("template file name is not UTF-8 {0}")]
+    TemplateFileNameIsNotUtf8(String),
     #[error("template is not directory")]
     TemplateIsNotDirectory,
     #[error("template not found")]
     TemplateNotFound,
+    #[error("variable not found: {0}")]
+    VariableNotFound(String),
+    #[error("write file failed: {0}")]
+    WriteFileFailed(String),
 }
 
 fn main() -> Result<(), Error> {
@@ -89,27 +101,49 @@ fn handle_file(
     output_dir: &Path,
     data: &BTreeMap<String, String>,
 ) -> Result<(), Error> {
-    let relative_path = file.strip_prefix(template_dir).expect("FIXME");
-    let file_name = relative_path.to_str().expect("FIXME");
-    let output_file_path = output_dir.join(render(file_name, data));
+    // println!("DEBUG: file = {:?}", file);
 
-    let template_file_content = std::fs::read_to_string(file).expect("FIXME");
-    let output_file_content = render(&template_file_content, data);
-    println!("DEBUG: file = {:?}", file);
-    println!("DEBUG: output_file_path = {:?}", output_file_path);
-    println!("DEBUG: output_file_content = {:?}", output_file_content);
+    let relative_path = file
+        .strip_prefix(template_dir)
+        .expect("file to be in template_dir");
 
-    std::fs::create_dir_all(output_file_path.parent().expect("FIXME")).expect("FIXME");
-    std::fs::write(output_file_path, output_file_content).expect("FIXME");
+    let file_name = relative_path
+        .to_str()
+        .ok_or_else(|| Error::TemplateFileNameIsNotUtf8(relative_path.display().to_string()))?;
+    let output_file_name = render(file_name, data)?;
+    // TODO: check output_file_name is valid
+    let output_file_path = output_dir.join(output_file_name);
+
+    let file_content = std::fs::read_to_string(file)
+        .map_err(|_| Error::ReadFileFailed(file.display().to_string()))?;
+    let output_file_content = render(&file_content, data)?;
+
+    // println!("DEBUG: output_file_path = {:?}", output_file_path);
+    // println!("DEBUG: output_file_content = {:?}", output_file_content);
+
+    let output_file_parent_dir = output_file_path
+        .parent()
+        .expect("output_file_path not to be root");
+    std::fs::create_dir_all(output_file_parent_dir)
+        .map_err(|_| Error::CreateDirectoryFailed(output_file_parent_dir.display().to_string()))?;
+    std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(output_file_path.as_path())
+        .map_err(|_| Error::CreateFileFailed(output_file_path.display().to_string()))?
+        .write_all(output_file_content.as_bytes())
+        .map_err(|_| Error::WriteFileFailed(output_file_path.display().to_string()))?;
     Ok(())
 }
 
-fn render(tmpl: &str, data: &BTreeMap<String, String>) -> String {
+fn render(tmpl: &str, data: &BTreeMap<String, String>) -> Result<String, Error> {
     parse_tmpl(tmpl)
         .into_iter()
-        .fold(String::new(), |acc, token| match token {
-            Token::Val(val) => acc + &val,
-            Token::Var(var) => acc + data.get(&var).expect("FIXME"),
+        .try_fold(String::new(), |acc, token| {
+            Ok(match token {
+                Token::Val(val) => acc + &val,
+                Token::Var(var) => acc + data.get(&var).ok_or(Error::VariableNotFound(var))?,
+            })
         })
 }
 

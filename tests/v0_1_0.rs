@@ -4,6 +4,34 @@ use assert_cmd::Command;
 use tempdir::TempDir;
 
 #[test]
+fn test_error_create_directory_failed() -> anyhow::Result<()> {
+    // I can't test
+    Ok(())
+}
+
+#[test]
+fn test_error_create_file_failed() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("tempura")?;
+    let temp_dir = temp_dir.path();
+    let tmpl_dir = temp_dir.join("tmpl");
+    fs::create_dir_all(tmpl_dir.as_path())?;
+    fs::write(tmpl_dir.join("{{name}}.txt"), r#"Hello,{{name}}"#)?;
+    fs::write(temp_dir.join("World.txt"), r#"already exists"#)?;
+    Command::cargo_bin("tempura")?
+        .arg("tmpl")
+        .current_dir(temp_dir)
+        .write_stdin(r#"{"name":"World"}"#)
+        .assert()
+        .failure()
+        .stderr(predicates::str::starts_with("Error: CreateFileFailed("));
+    assert_eq!(
+        fs::read_to_string(temp_dir.join("World.txt"))?,
+        "already exists"
+    );
+    Ok(())
+}
+
+#[test]
 fn test_error_current_directory_not_found() -> anyhow::Result<()> {
     // I can't test
     Ok(())
@@ -66,6 +94,24 @@ fn test_error_no_arguments() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_error_read_directory_failed() -> anyhow::Result<()> {
+    // I can't test
+    Ok(())
+}
+
+#[test]
+fn test_error_read_file_failed() -> anyhow::Result<()> {
+    // I can't test
+    Ok(())
+}
+
+#[test]
+fn test_error_template_file_name_is_not_utf8() -> anyhow::Result<()> {
+    // I can't test
+    Ok(())
+}
+
+#[test]
 fn test_error_template_is_not_directory() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("tempura")?;
     let temp_dir = temp_dir.path();
@@ -92,6 +138,29 @@ fn test_error_template_not_found() -> anyhow::Result<()> {
         .assert()
         .failure()
         .stderr("Error: TemplateNotFound\n");
+    Ok(())
+}
+
+#[test]
+fn test_error_variable_not_found() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("tempura")?;
+    let temp_dir = temp_dir.path();
+    let tmpl_dir = temp_dir.join("tmpl");
+    fs::create_dir_all(tmpl_dir.as_path())?;
+    fs::write(tmpl_dir.join("{{name}}.txt"), r#"Hello,{{name}}"#)?;
+    Command::cargo_bin("tempura")?
+        .arg("tmpl")
+        .current_dir(temp_dir)
+        .write_stdin(r#"{"name1":"World"}"#)
+        .assert()
+        .failure()
+        .stderr("Error: VariableNotFound(\"name\")\n");
+    Ok(())
+}
+
+#[test]
+fn test_error_write_file_failed() -> anyhow::Result<()> {
+    // I can't test
     Ok(())
 }
 
