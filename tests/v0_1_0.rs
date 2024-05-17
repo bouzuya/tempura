@@ -142,6 +142,40 @@ fn test_error_template_not_found() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_error_variable_contains_path_separator() -> anyhow::Result<()> {
+    let temp_dir = TempDir::new("tempura")?;
+    let temp_dir = temp_dir.path();
+    // <temp_dir>/tmpl/{{name}}.txt
+    let tmpl_dir = temp_dir.join("tmpl");
+    fs::create_dir_all(tmpl_dir.as_path())?;
+    fs::write(tmpl_dir.join("{{name}}.txt"), r#"Hello,{{name}}"#)?;
+    Command::cargo_bin("tempura")?
+        .arg("tmpl")
+        .current_dir(temp_dir)
+        .write_stdin(r#"{"name":"foo/bar"}"#)
+        .assert()
+        .failure()
+        .stderr("Error: VariableContainsPathSeparator(\"{{name}}.txt\", \"foo/bar.txt\")\n");
+
+    let temp_dir = TempDir::new("tempura")?;
+    let temp_dir = temp_dir.path();
+    // <temp_dir>/tmpl/nested/{{name}}.txt
+    let tmpl_dir = temp_dir.join("tmpl");
+    fs::create_dir_all(tmpl_dir.as_path())?;
+    let nested_dir = tmpl_dir.join("nested");
+    fs::create_dir_all(nested_dir.as_path())?;
+    fs::write(nested_dir.join("{{name}}.txt"), r#"Hello,{{name}}"#)?;
+    Command::cargo_bin("tempura")?
+        .arg("tmpl")
+        .current_dir(temp_dir)
+        .write_stdin(r#"{"name":"foo/bar"}"#)
+        .assert()
+        .failure()
+        .stderr("Error: VariableContainsPathSeparator(\"nested/{{name}}.txt\", \"nested/foo/bar.txt\")\n");
+    Ok(())
+}
+
+#[test]
 fn test_error_variable_not_found() -> anyhow::Result<()> {
     let temp_dir = TempDir::new("tempura")?;
     let temp_dir = temp_dir.path();

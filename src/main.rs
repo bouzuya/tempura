@@ -28,6 +28,8 @@ enum Error {
     TemplateIsNotDirectory,
     #[error("template not found")]
     TemplateNotFound,
+    #[error("variable contains path separator: {0} {1}")]
+    VariableContainsPathSeparator(String, String),
     #[error("variable not found: {0}")]
     VariableNotFound(String),
     #[error("write file failed: {0}")]
@@ -103,28 +105,34 @@ fn handle_file(
 ) -> Result<(), Error> {
     // println!("DEBUG: file = {:?}", file);
 
-    let relative_path = file
+    let dir = file
+        .parent()
+        .expect("file to have parent")
         .strip_prefix(template_dir)
         .expect("file to be in template_dir");
 
-    let file_name = relative_path
+    let file_name = file.file_name().expect("file to have file_name");
+    let file_name = file_name
         .to_str()
-        .ok_or_else(|| Error::TemplateFileNameIsNotUtf8(relative_path.display().to_string()))?;
+        .ok_or_else(|| Error::TemplateFileNameIsNotUtf8(file_name.to_string_lossy().to_string()))?;
     let output_file_name = render(file_name, data)?;
-    // TODO: check output_file_name is valid
-    let output_file_path = output_dir.join(output_file_name);
+    if output_file_name.chars().any(std::path::is_separator) {
+        return Err(Error::VariableContainsPathSeparator(
+            dir.join(file_name).display().to_string(),
+            dir.join(output_file_name).display().to_string(),
+        ));
+    }
+    let output_file_parent_dir = output_dir.join(dir);
+    let output_file_path = output_file_parent_dir.join(output_file_name);
 
-    let file_content = std::fs::read_to_string(file)
-        .map_err(|_| Error::ReadFileFailed(file.display().to_string()))?;
+    let file_content =
+        std::fs::read_to_string(file).map_err(|_| Error::ReadFileFailed(file_name.to_string()))?;
     let output_file_content = render(&file_content, data)?;
 
     // println!("DEBUG: output_file_path = {:?}", output_file_path);
     // println!("DEBUG: output_file_content = {:?}", output_file_content);
 
-    let output_file_parent_dir = output_file_path
-        .parent()
-        .expect("output_file_path not to be root");
-    std::fs::create_dir_all(output_file_parent_dir)
+    std::fs::create_dir_all(output_file_parent_dir.as_path())
         .map_err(|_| Error::CreateDirectoryFailed(output_file_parent_dir.display().to_string()))?;
     std::fs::OpenOptions::new()
         .create_new(true)
