@@ -8,10 +8,10 @@ use std::{
 enum Error {
     #[error("current directory not found")]
     CurrentDirectoryNotFound,
-    #[error("input is not valid json")]
-    InputIsNotValidJson,
     #[error("input is not UTF-8")]
     InputIsNotUtf8,
+    #[error("input is not valid json")]
+    InputIsNotValidJson,
     #[error("no arguments")]
     NoArguments,
     #[error("read directory failed: {0}")]
