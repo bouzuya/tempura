@@ -4,7 +4,9 @@ The tempura is a template engine written in Rust. It is designed to work with th
 
 ## Installation
 
-TODO
+```console
+cargo install --git https://github.com/bouzuya/tempura
+```
 
 ## Usage
 
