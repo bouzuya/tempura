@@ -22,6 +22,8 @@ enum Error {
     ReadDirectoryFailed(String),
     #[error("read file failed: {0}")]
     ReadFileFailed(String),
+    #[error("template dir name is not UTF-8 {0}")]
+    TemplateDirNameIsNotUtf8(String),
     #[error("template file name is not UTF-8 {0}")]
     TemplateFileNameIsNotUtf8(String),
     #[error("template is not directory")]
@@ -122,7 +124,37 @@ fn handle_file(
             dir.join(output_file_name).display().to_string(),
         ));
     }
-    let output_file_parent_dir = output_dir.join(dir);
+    let output_file_parent_dir = {
+        let mut dirs = vec![];
+        let mut p = dir;
+        loop {
+            let dir_name = match p.file_name() {
+                None => break,
+                Some(x) => x,
+            };
+            let dir_name = dir_name.to_str().ok_or_else(|| {
+                Error::TemplateDirNameIsNotUtf8(dir.to_string_lossy().to_string())
+            })?;
+            let output_dir_name = render(dir_name, data)?;
+            if output_dir_name.chars().any(std::path::is_separator) {
+                return Err(Error::VariableContainsPathSeparator(
+                    dir.join(file_name).display().to_string(),
+                    dir.join(output_dir_name).display().to_string(),
+                ));
+            }
+            dirs.push(output_dir_name);
+            match p.parent() {
+                None => break,
+                Some(x) => p = x,
+            }
+        }
+        dirs.reverse();
+        let mut output_dir = output_dir.to_path_buf();
+        for d in dirs {
+            output_dir = output_dir.join(d);
+        }
+        output_dir
+    };
     let output_file_path = output_file_parent_dir.join(output_file_name);
 
     let file_content =
